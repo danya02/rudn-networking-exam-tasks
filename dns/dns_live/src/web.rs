@@ -3,8 +3,8 @@ use minijinja::context;
 
 use self::templates::env;
 
-mod ui;
 mod templates;
+mod ui;
 
 pub async fn web_main() -> ! {
     let app = get_router();
@@ -19,12 +19,18 @@ pub async fn web_main() -> ! {
 }
 
 fn get_router() -> Router {
-    Router::new().route("/", get(not_found)).fallback(not_found)
-    .route("/:session", get(ui::session_get).post(ui::session_post))
-
+    Router::new()
+        .route("/", get(not_found))
+        .fallback(not_found)
+        .route("/:session", get(ui::session_get).post(ui::session_post))
 }
 
 async fn not_found() -> Html<String> {
     let env = env();
-    Html(env.get_template("notfound").unwrap().render(context!()).unwrap())
+    Html(
+        env.get_template("notfound")
+            .unwrap()
+            .render(context!())
+            .unwrap(),
+    )
 }

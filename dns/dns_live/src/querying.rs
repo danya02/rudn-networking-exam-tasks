@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 use trust_dns_client::client::{Client, ClientHandle, SyncClient};
-use trust_dns_client::op::DnsResponse;
+use trust_dns_client::op::{DnsResponse, ResponseCode};
 use trust_dns_client::rr::{DNSClass, Name, RecordType};
 use trust_dns_client::udp::UdpClientConnection;
 
@@ -50,4 +50,47 @@ pub async fn perform_query(
     //  generally we will be interested in the Message::answers
     bg_task.abort();
     Ok(response)
+}
+
+/// Check whether a NS server is recursive
+/// by querying it for several domains across multiple zones,
+/// and seeing if it gives answers for all of them.
+pub async fn is_recursive_server(server: SocketAddr) -> bool {
+    let names = vec![
+        "example.com",
+        "example.net",
+        "example.org",
+        "iana.org",
+        "cctld.ru",
+        "bit.ly",
+        "nih.gov",
+        "github.io",
+    ];
+    let successes_needed = 4; // this or more responses with answer sections are needed
+
+    let mut tasks = vec![];
+
+    for name in names {
+        tasks.push(tokio::spawn(perform_query(server, name, RecordType::A)));
+    }
+    let mut successes = 0;
+    for task in tasks {
+        let resp = task.await; // Result representing joining the task
+        if resp.is_err() {
+            continue;
+        }
+        let resp = resp.unwrap(); // Result representing querying.
+        if resp.is_err() {
+            continue;
+        }
+        let resp = resp.unwrap(); // the actual response
+        if resp.response_code() == ResponseCode::NoError && resp.contains_answer() {
+            successes += 1;
+        }
+        if successes >= successes_needed {
+            return true;
+        }
+    }
+
+    false
 }
