@@ -1,10 +1,9 @@
-use trust_dns_client::client::{Client, ClientConnection, SyncClient, AsyncClient, ClientHandle};
-use trust_dns_client::tcp::TcpClientStream;
-use trust_dns_client::udp::{UdpClientConnection, UdpClientStream};
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 use std::str::FromStr;
+use trust_dns_client::client::{Client, ClientHandle, SyncClient};
 use trust_dns_client::op::DnsResponse;
-use trust_dns_client::rr::{DNSClass, Name, RData, Record, RecordType};
+use trust_dns_client::rr::{DNSClass, Name, RecordType};
+use trust_dns_client::udp::UdpClientConnection;
 
 #[derive(Debug)]
 pub enum QueryError {
@@ -12,10 +11,17 @@ pub enum QueryError {
     Unexpected(String),
 }
 
-pub async fn perform_query(server: SocketAddr, name: &str, query_type: RecordType) -> Result<DnsResponse, QueryError>  {
+pub async fn perform_query(
+    server: SocketAddr,
+    name: &str,
+    query_type: RecordType,
+) -> Result<DnsResponse, QueryError> {
     let conn = UdpClientConnection::new(server).unwrap(); // infallible
     let client = SyncClient::new(conn);
-    let (mut client, bg) = client.new_future().await.map_err(|e| QueryError::Unexpected(format!("{:?}", e)) )?;
+    let (mut client, bg) = client
+        .new_future()
+        .await
+        .map_err(|e| QueryError::Unexpected(format!("{e:?}")))?;
     let bg_task = tokio::spawn(bg);
     let name = Name::from_str(name).unwrap();
 
@@ -30,13 +36,13 @@ pub async fn perform_query(server: SocketAddr, name: &str, query_type: RecordTyp
                 // trust_dns_client::error::ClientErrorKind::Proto(_) => todo!(),
                 // trust_dns_client::error::ClientErrorKind::SendError(_) => todo!(),
                 trust_dns_client::error::ClientErrorKind::Timeout => Err(QueryError::Timeout),
-                _ => Err(QueryError::Unexpected(format!("{:?}", error))),
+                _ => Err(QueryError::Unexpected(format!("{error:?}"))),
             };
             bg_task.abort();
             return response;
         }
     };
-    
+
     // Messages are the packets sent between client and server in DNS.
     //  there are many fields to a Message, DnsResponse can be dereferenced into
     //  a Message. It's beyond the scope of these examples

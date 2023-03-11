@@ -1,8 +1,11 @@
-use trust_dns_client::rr::RecordType;
-
 mod querying;
+mod session;
+mod web;
 
 #[tokio::main]
 async fn main() {
-    println!("{}", querying::perform_query("1.1.1.1:53".parse().unwrap(), ".", RecordType::NS).await.unwrap().into_inner());
+    tracing_subscriber::fmt::init();
+    tracing::info!("Started!");
+
+    web::web_main().await;
 }
