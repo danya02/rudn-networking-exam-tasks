@@ -1,0 +1,11 @@
+[package]
+name = "dns_live"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.26.0", features = ["full"] }
+trust-dns-client = "0.22.0"
+trust-dns-proto = "0.22.0"
