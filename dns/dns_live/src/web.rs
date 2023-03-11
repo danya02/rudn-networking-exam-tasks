@@ -1,6 +1,10 @@
 use axum::{response::Html, routing::get, Router};
+use minijinja::context;
+
+use self::templates::env;
 
 mod ui;
+mod templates;
 
 pub async fn web_main() -> ! {
     let app = get_router();
@@ -15,11 +19,12 @@ pub async fn web_main() -> ! {
 }
 
 fn get_router() -> Router {
-    Router::new().route("/", get(home))
+    Router::new().route("/", get(not_found)).fallback(not_found)
     .route("/:session", get(ui::session_get).post(ui::session_post))
 
 }
 
-async fn home() -> Html<String> {
-    Html("HelloWorld!".to_string())
+async fn not_found() -> Html<String> {
+    let env = env();
+    Html(env.get_template("notfound").unwrap().render(context!()).unwrap())
 }
