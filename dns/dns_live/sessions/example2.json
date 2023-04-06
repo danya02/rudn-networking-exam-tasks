@@ -1,0 +1,18 @@
+{
+  "user_requests": [],
+  "current_output_mode": "Classic",
+  "answers_remaining": 5,
+  "can_answer": true,
+  "question": {
+    "text": "What IP address should I dial to send an email to someone at gmail.com?",
+    "answer": {
+      "type": "Preset",
+      "options":
+        [
+          "108.177.14.26",
+          "108.177.14.27",
+          "64.233.165.27"
+        ]
+    }
+  }
+}

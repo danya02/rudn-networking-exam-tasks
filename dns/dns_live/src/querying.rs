@@ -4,6 +4,10 @@ use trust_dns_client::client::{Client, ClientHandle, SyncClient};
 use trust_dns_client::op::{DnsResponse, ResponseCode};
 use trust_dns_client::rr::{DNSClass, Name, RecordType};
 use trust_dns_client::udp::UdpClientConnection;
+use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
+use trust_dns_resolver::TokioAsyncResolver;
+
+use crate::session::Answer;
 
 #[derive(Debug)]
 pub enum QueryError {
@@ -93,4 +97,88 @@ pub async fn is_recursive_server(server: SocketAddr) -> bool {
     }
 
     false
+}
+
+/// Validate a potential answer to a question,
+/// potentially by performing DNS lookups.
+pub async fn validate_answer(expected: &Answer, got: &str) -> Option<bool> {
+    match expected {
+        Answer::Derived { record_type, query } => {
+            let config = ResolverConfig::default();
+            let options = ResolverOpts::default();
+            let resolver = TokioAsyncResolver::tokio(config, options).ok()?;
+
+            let answer = resolver.lookup(query, *record_type).await.ok()?;
+            Some(answer.iter().find(|item| item.to_string() == got).is_some())
+        }
+        Answer::Preset { options } => Some(options.contains(&got.to_owned())),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_validate_answer_preset() {
+        assert_eq!(
+            validate_answer(
+                &Answer::Preset {
+                    options: vec!["1.2.3.4".to_string()]
+                },
+                "1.2.3.4"
+            )
+            .await,
+            Some(true)
+        );
+
+        assert_eq!(
+            validate_answer(
+                &Answer::Preset {
+                    options: vec!["1.2.3.4".to_string()]
+                },
+                "1.2.3.5"
+            )
+            .await,
+            Some(false)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_validate_answer_derived() {
+        assert_eq!(
+            validate_answer(
+                &Answer::Derived {
+                    record_type: RecordType::A,
+                    query: "one.one.one.one.".to_string()
+                },
+                "1.1.1.1"
+            )
+            .await,
+            Some(true)
+        );
+        assert_eq!(
+            validate_answer(
+                &Answer::Derived {
+                    record_type: RecordType::A,
+                    query: "one.one.one.one.".to_string()
+                },
+                "1.0.0.1" // valid alternate A record
+            )
+            .await,
+            Some(true)
+        );
+
+        assert_eq!(
+            validate_answer(
+                &Answer::Derived {
+                    record_type: RecordType::A,
+                    query: "one.one.one.one.".to_string()
+                },
+                "1.2.3.4"
+            )
+            .await,
+            Some(false)
+        );
+    }
 }

@@ -1,7 +1,4 @@
-use std::{
-    net::IpAddr,
-    path::PathBuf,
-};
+use std::{net::IpAddr, path::PathBuf};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -15,6 +12,27 @@ use trust_dns_client::rr::RecordType;
 pub struct Session {
     pub user_requests: Vec<RequestLogEntry>,
     pub current_output_mode: OutputMode,
+    pub answers_remaining: usize,
+    pub can_answer: bool,
+    pub question: Question,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Question {
+    pub text: String,
+    pub answer: Answer,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Answer {
+    Derived {
+        record_type: RecordType,
+        query: String,
+    },
+    Preset {
+        options: Vec<String>,
+    },
 }
 
 pub async fn get_session(key: &str) -> Option<Session> {
@@ -64,6 +82,17 @@ pub enum Event {
     SwitchOutputMode {
         new_mode: OutputMode,
     },
+    SubmitAnswer {
+        answer: String,
+        status: AnswerStatus,
+    },
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum AnswerStatus {
+    Correct,
+    Incorrect,
+    Error,
 }
 
 #[derive(Serialize, Deserialize)]

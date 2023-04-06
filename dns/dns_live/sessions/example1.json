@@ -1,0 +1,14 @@
+{
+  "user_requests": [],
+  "current_output_mode": "Classic",
+  "answers_remaining": 5,
+  "can_answer": true,
+  "question": {
+    "text": "What IP address should I dial to reach https://en.wikipedia.org?",
+    "answer": {
+      "type": "Derived",
+      "record_type": "A",
+      "query": "en.wikipedia.org"
+    }
+  }
+}

@@ -11,8 +11,8 @@ use chrono::Utc;
 use minijinja::context;
 
 use crate::{
-    querying::{is_recursive_server, perform_query},
-    session::{get_session, set_session, Event, Request, RequestLogEntry, Response},
+    querying::{is_recursive_server, perform_query, validate_answer},
+    session::{get_session, set_session, AnswerStatus, Event, Request, RequestLogEntry, Response},
 };
 
 pub async fn session_get(Path(key): Path<String>) -> (StatusCode, Html<String>) {
@@ -55,12 +55,25 @@ pub async fn session_post(
         ));
     }
     let mut session = session.unwrap();
+    if !session.can_answer {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Html(
+                env.get_template("noattempts")
+                    .unwrap()
+                    .render(context!(key => key))
+                    .unwrap(),
+            ),
+        ));
+    }
 
     let event = match request {
         SessionRequest::Query { ip, class, name } => {
+            let ip = ip.trim();
+            let name = name.trim();
             let request = Request {
-                server_ip: ip.clone(),
-                name: name.clone(),
+                server_ip: ip.to_owned(),
+                name: name.to_owned(),
                 record_type: class,
             };
             // Try parsing the query IP address.
@@ -107,13 +120,33 @@ pub async fn session_post(
                 // Add error record
                 Event::Request {
                     request,
-                    response: crate::session::ResponseResult::InvalidRequestIpAddr { addr: ip },
+                    response: crate::session::ResponseResult::InvalidRequestIpAddr {
+                        addr: ip.to_owned(),
+                    },
                 }
             }
-        },
+        }
         SessionRequest::SetOutputMode { mode } => {
             session.current_output_mode = mode;
             Event::SwitchOutputMode { new_mode: mode }
+        }
+        SessionRequest::SubmitAnswer { answer } => {
+            let answer = answer.trim().to_owned();
+            let status = match validate_answer(&session.question.answer, &answer).await {
+                Some(true) => AnswerStatus::Correct,
+                Some(false) => AnswerStatus::Incorrect,
+                None => AnswerStatus::Error,
+            };
+            if !matches!(status, AnswerStatus::Error) {
+                session.answers_remaining -= 1;
+            }
+
+            if matches!(status, AnswerStatus::Correct) || session.answers_remaining==0 {
+                session.can_answer = false;
+            }
+
+
+            Event::SubmitAnswer { answer, status }
         }
     };
     session.user_requests.push(RequestLogEntry {
